@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Comprehensive Windows system setup and automation script
+    Windows system setup and automation script
 .DESCRIPTION
     Configures system settings, installs software, and sets up automation environment
 #>
@@ -12,7 +12,15 @@ param()
 $ErrorActionPreference = "Continue"
 $AutomationPath = "C:\Users\Public\Automation"
 $LogPath = Join-Path $AutomationPath "setup.log"
-$DownloadsPath = "$env:USERPROFILE\Downloads"
+$gitClonePath = Join-Path $AutomationPath "powershell"
+#$DownloadsPath = "$env:USERPROFILE\Downloads"
+$DownloadsPath = "C:\Users\Public\Automation\Downloads"
+$quickAccessPaths = @(
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup",
+    "C:\Users\Public\Automation",
+    "C:\Program Files\VDD_Control",
+    "C:\ProgramData\Looking Glass (host)"
+)
 
 # Initialize logging
 function Write-Log {
@@ -51,12 +59,16 @@ function Get-LatestGitHubRelease {
     }
 }
 
+Write-Log "=== Windows Automation Setup Started ===" "INFO"
+
 # Check admin privileges
 if (-not (Test-Administrator)) {
     Write-Host "Script must be run as Administrator. Attempting to elevate..." -ForegroundColor Yellow
     Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     exit
 }
+
+Write-Log "Running with Administrator privileges" "SUCCESS"
 
 # Create automation directory
 try {
@@ -71,8 +83,23 @@ try {
     exit 1
 }
 
-Write-Log "=== Windows Automation Setup Started ===" "INFO"
-Write-Log "Running with Administrator privileges" "SUCCESS"
+# Exclude automation directory from Windows Defender
+try {
+    Write-Log "Excluding $AutomationPath from Windows Defender..." "INFO"
+    Add-MpPreference -ExclusionPath $AutomationPath
+    Write-Log "Windows Defender exclusion added" "SUCCESS"
+} catch {
+    Write-Log "Failed to add Defender exclusion: $_" "ERROR"
+}
+
+# Disable UAC prompts for automation directory (via registry)
+try {
+    Write-Log "Configuring UAC settings for automation..." "INFO"
+    Write-Log "Note: UAC cannot be selectively disabled per-directory" "WARNING"
+    Write-Log "Consider running automation scripts as scheduled tasks with SYSTEM privileges" "INFO"
+} catch {
+    Write-Log "UAC configuration noted: $_" "WARNING"
+}
 
 # Enable sudo (PowerShell 7.4+ feature)
 try {
@@ -91,46 +118,21 @@ try {
     Write-Log "Could not enable sudo: $_" "WARNING"
 }
 
-# Install Git
+# Install Winget
 try {
-    Write-Log "Installing Git..." "INFO"
-    if (Get-Command git -ErrorAction SilentlyContinue) {
-        Write-Log "Git already installed" "SUCCESS"
-    } else {
-        $gitUrl = "https://github.com/git-for-windows/git/releases/latest/download/Git-2.47.1-64-bit.exe"
-        $gitInstaller = Join-Path $DownloadsPath "git-installer.exe"
-        Invoke-WebRequest -Uri $gitUrl -OutFile $gitInstaller
-        Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT /NORESTART" -Wait
-        Write-Log "Git installed" "SUCCESS"
-    }
-} catch {
-    Write-Log "Failed to install Git: $_" "ERROR"
-}
-
-# Install latest PowerShell
-try {
-    Write-Log "Installing latest PowerShell..." "INFO"
-    $pwshUrl = "https://github.com/PowerShell/PowerShell/releases/latest/download/PowerShell-7.5.0-win-x64.msi"
-    $pwshInstaller = Join-Path $DownloadsPath "PowerShell.msi"
-    Invoke-WebRequest -Uri $pwshUrl -OutFile $pwshInstaller
-    Start-Process msiexec.exe -ArgumentList "/i `"$pwshInstaller`" /quiet /norestart ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1" -Wait
-    Write-Log "PowerShell 7 installed" "SUCCESS"
-} catch {
-    Write-Log "Failed to install PowerShell: $_" "ERROR"
-}
-
-# Install Winget (if not present)
-try {
-    Write-Log "Checking Winget installation..." "INFO"
+    Write-Log "Checking WinGet availability..." "INFO"
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Log "Winget already installed" "SUCCESS"
+        Write-Log "WinGet already installed" "SUCCESS"
     } else {
-        Write-Log "Installing Winget..." "INFO"
-        Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
-        Write-Log "Winget installed" "SUCCESS"
+        Write-Log "Installing WinGet..." "INFO"
+        $wingetUrl = "https://aka.ms/getwinget"
+        $wingetPkg = Join-Path $DownloadsPath "Microsoft.DesktopAppInstaller.msixbundle"
+        Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPkg
+        Add-AppxPackage -Path $wingetPkg
+        Write-Log "WinGet installed successfully" "SUCCESS"
     }
 } catch {
-    Write-Log "Failed to install Winget: $_" "ERROR"
+    Write-Log "Failed to install WinGet: $_" "ERROR"
 }
 
 # Install Chocolatey
@@ -148,8 +150,43 @@ try {
     Write-Log "Failed to install Chocolatey: $_" "ERROR"
 }
 
-# Refresh environment variables
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+# Install latest PowerShell via Winget
+try {
+    Write-Log "Installing latest PowerShell via Winget..." "INFO"
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) { throw "Winget is not available on this system" }
+    Start-Process winget -ArgumentList "install --id Microsoft.PowerShell --silent --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow
+    Write-Log "PowerShell installed successfully via Winget" "SUCCESS"
+} catch {
+    Write-Log "Failed to install PowerShell via Winget: $($_.Exception.Message)" "ERROR"
+}
+
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+            [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Install Git
+try {
+    Write-Log "Installing Git..." "INFO"
+    winget install Git.Git --accept-source-agreements --accept-package-agreements
+    Write-Log "Git installed" "SUCCESS"
+} catch {
+    Write-Log "Failed to install Git: $_" "ERROR"
+}
+
+# Git clone this repository
+try {
+    Write-Log "Cloning powershell repository..." "INFO"
+    if (Test-Path $gitClonePath) {
+        Write-Log "Repository directory already exists, pulling latest changes..." "INFO"
+        Set-Location $gitClonePath
+        git pull
+    } else {
+        git clone https://github.com/almostlight/powershell $gitClonePath
+    }
+    Write-Log "Repository cloned/updated at $gitClonePath" "SUCCESS"
+} catch {
+    Write-Log "Failed to clone repository: $_" "ERROR"
+}
 
 # Install 7-Zip
 try {
@@ -160,38 +197,7 @@ try {
     Write-Log "Failed to install 7-Zip: $_" "ERROR"
 }
 
-# Run Chris Titus Tech Windows Utility
-try {
-    Write-Log "Launching Chris Titus Tech Windows Utility..." "INFO"
-    iwr -useb https://christitus.com/win | iex
-    Write-Log "Windows Utility executed" "SUCCESS"
-} catch {
-    Write-Log "Failed to run Windows Utility: $_" "ERROR"
-}
-
-# Enable Administrator account
-try {
-    Write-Log "Enabling built-in Administrator account..." "INFO"
-    net user administrator /active:yes
-    Write-Log "Administrator account enabled" "SUCCESS"
-} catch {
-    Write-Log "Failed to enable Administrator account: $_" "ERROR"
-}
-
-# Download and unpack Looking Glass
-try {
-    Write-Log "Downloading Looking Glass host..." "INFO"
-    $lgPath = Join-Path $DownloadsPath "looking-glass-host.zip"
-    Invoke-WebRequest -Uri "https://looking-glass.io/artifact/stable/host" -OutFile $lgPath
-    
-    $lgExtractPath = Join-Path $DownloadsPath "LookingGlass"
-    Expand-Archive -Path $lgPath -DestinationPath $lgExtractPath -Force
-    Write-Log "Looking Glass downloaded and extracted to $lgExtractPath" "SUCCESS"
-} catch {
-    Write-Log "Failed to download Looking Glass: $_" "ERROR"
-}
-
-# Install OpenSSH Server
+# Install and enable OpenSSH Server
 try {
     Write-Log "Installing OpenSSH Server..." "INFO"
     Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
@@ -205,27 +211,58 @@ try {
     Write-Log "Failed to install OpenSSH Server: $_" "ERROR"
 }
 
-# Install PowerToys
+# Enable RDP
 try {
-    Write-Log "Installing PowerToys..." "INFO"
-    winget install Microsoft.PowerToys --accept-source-agreements --accept-package-agreements
-    Write-Log "PowerToys installed" "SUCCESS"
+    Write-Log "Enabling Remote Desktop..." "INFO"
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    Write-Log "Remote Desktop enabled" "SUCCESS"
 } catch {
-    Write-Log "Failed to install PowerToys: $_" "ERROR"
+    Write-Log "Failed to enable RDP: $_" "ERROR"
 }
 
-# Download Virtual Display Driver
+# Install Notepad++
 try {
-    Write-Log "Downloading Virtual Display Driver..." "INFO"
-    $vddUrl = Get-LatestGitHubRelease -Repo "VirtualDrivers/Virtual-Display-Driver" -AssetPattern "*.zip"
-    $vddPath = Join-Path $DownloadsPath "virtual-display-driver.zip"
-    Invoke-WebRequest -Uri $vddUrl -OutFile $vddPath
-    
-    $vddExtractPath = Join-Path $DownloadsPath "VirtualDisplayDriver"
-    Expand-Archive -Path $vddPath -DestinationPath $vddExtractPath -Force
-    Write-Log "Virtual Display Driver downloaded and extracted to $vddExtractPath" "SUCCESS"
+    Write-Log "Installing Notepad++..." "INFO"
+    winget install Notepad++.Notepad++ --accept-source-agreements --accept-package-agreements
+    Write-Log "Notepad++ installed" "SUCCESS"
 } catch {
-    Write-Log "Failed to download Virtual Display Driver: $_" "ERROR"
+    Write-Log "Failed to install Notepad++: $_" "ERROR"
+}
+
+try {
+    Write-Log "Running NPPPowershell install script..." "INFO"
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$gitClonePath\npp_powershell_installer.ps1`"" -Wait -NoNewWindow
+    Write-Log "NPPPowershell installed" "SUCCESS"
+} catch {
+    Write-Log "Failed to download/install NPPPowershell: $_" "ERROR"
+}
+
+# Install HWiNFO64
+try {
+    Write-Log "Installing HWiNFO64..." "INFO"
+    choco install hwinfo -y
+    Write-Log "HWiNFO64 installed" "SUCCESS"
+} catch {
+    Write-Log "Failed to install HWiNFO64: $_" "ERROR"
+}
+
+# Install Ungoogled Chromium
+try {
+    Write-Log "Installing Ungoogled Chromium..." "INFO"
+    choco install ungoogled-chromium -y
+    Write-Log "Ungoogled Chromium installed" "SUCCESS"
+} catch {
+    Write-Log "Failed to install Ungoogled Chromium: $_" "ERROR"
+}
+
+# Enable Administrator account
+try {
+    Write-Log "Enabling built-in Administrator account..." "INFO"
+    net user administrator /active:yes
+    Write-Log "Administrator account enabled" "SUCCESS"
+} catch {
+    Write-Log "Failed to enable Administrator account: $_" "ERROR"
 }
 
 # Download Autologon
@@ -243,26 +280,46 @@ try {
     Write-Log "Failed to download Autologon: $_" "ERROR"
 }
 
-# Download NVCleaninstall
-try {
-    Write-Log "Downloading NVCleaninstall..." "INFO"
-    Write-Log "Note: NVCleaninstall requires manual download from https://www.techpowerup.com/nvcleanstall/" "WARNING"
-} catch {
-    Write-Log "NVCleaninstall step noted" "WARNING"
-}
+######## Configure VM + PCI passthrough (wip)
 
 # Download and run virtio-win-guest-tools
 try {
     Write-Log "Downloading virtio-win-guest-tools..." "INFO"
+    
     $virtioUrl = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win-guest-tools.exe"
     $virtioPath = Join-Path $DownloadsPath "virtio-win-guest-tools.exe"
-    Invoke-WebRequest -Uri $virtioUrl -OutFile $virtioPath
     
-    Write-Log "Running virtio-win-guest-tools installer..." "INFO"
+    # Remove existing file if present
+    if (Test-Path $virtioPath) {
+        Remove-Item $virtioPath -Force
+    }
+    
+    # Disable progress bar for faster download
+    $ProgressPreference = 'SilentlyContinue'
+    
+    # Try BITS first (fastest), fallback to Invoke-WebRequest
+    try {
+        Start-BitsTransfer -Source $virtioUrl -Destination $virtioPath -Description "VirtIO Guest Tools"
+        Write-Log "Downloaded using BITS transfer" "INFO"
+    } catch {
+        Write-Log "BITS failed, using standard download..." "INFO"
+        Invoke-WebRequest -Uri $virtioUrl -OutFile $virtioPath -UseBasicParsing
+    }
+    
+    $ProgressPreference = 'Continue'
+    
+    # Verify download
+    if (-not (Test-Path $virtioPath)) {
+        throw "Download failed - file not found at $virtioPath"
+    }
+    
+    Write-Log "Download complete. Running virtio-win-guest-tools installer..." "INFO"
     Start-Process -FilePath $virtioPath -ArgumentList "/quiet" -Wait
-    Write-Log "virtio-win-guest-tools installed" "SUCCESS"
+    Write-Log "virtio-win-guest-tools installed successfully" "SUCCESS"
+    
 } catch {
-    Write-Log "Failed to download/install virtio-win-guest-tools: $_" "ERROR"
+    Write-Log "Failed to download/install virtio-win-guest-tools: $($_.Exception.Message)" "ERROR"
+    $ProgressPreference = 'Continue'
 }
 
 # Download and run WinFSP
@@ -288,6 +345,158 @@ try {
     Write-Log "Failed to install NSSM: $_" "ERROR"
 }
 
+# Download Virtual Display Driver
+try {
+    Write-Log "Downloading Virtual Display Driver..." "INFO"
+    
+    # Define installation path
+    $vddInstallPath = "C:\Program Files\VDD_Control"
+    
+    # Create directory if it doesn't exist (requires admin rights)
+    if (-not (Test-Path $vddInstallPath)) {
+        New-Item -Path $vddInstallPath -ItemType Directory -Force | Out-Null
+        Write-Log "Created directory: $vddInstallPath" "INFO"
+    }
+    
+    # Get latest release
+    $vddUrl = Get-LatestGitHubRelease `
+		-Repo "VirtualDrivers/Virtual-Display-Driver" `
+		-AssetPattern "VDD.Control.*.zip"
+	
+    if (-not $vddUrl) {
+        throw "Could not find download URL for Virtual Display Driver"
+    }
+    
+    # Download to temp location first
+    $vddPath = Join-Path $env:TEMP "virtual-display-driver.zip"
+    
+    Write-Log "Downloading from: $vddUrl" "INFO"
+    Invoke-WebRequest -Uri $vddUrl -OutFile $vddPath -UseBasicParsing
+    
+    # Verify download
+    if (-not (Test-Path $vddPath)) {
+        throw "Download failed - file not found"
+    }
+    
+    Write-Log "Extracting to $vddInstallPath..." "INFO"
+    
+    # Extract directly to Program Files
+    Expand-Archive -Path $vddPath -DestinationPath $vddInstallPath -Force
+    
+    # Clean up temp zip
+    Remove-Item $vddPath -Force -ErrorAction SilentlyContinue
+    
+    Write-Log "Virtual Display Driver installed to $vddInstallPath" "SUCCESS"
+    
+    # Run VDD Control
+    $vddExePath = Join-Path $vddInstallPath "VDD Control.exe"
+    
+    if (Test-Path $vddExePath) {
+        Write-Log "Launching VDD Control..." "INFO"
+        Start-Process -FilePath $vddExePath
+        Write-Log "VDD Control launched successfully" "SUCCESS"
+    } else {
+        # Search for the exe in subdirectories
+        $vddExe = Get-ChildItem -Path $vddInstallPath -Filter "VDD Control.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        
+        if ($vddExe) {
+            Write-Log "Found VDD Control at: $($vddExe.FullName)" "INFO"
+            Start-Process -FilePath $vddExe.FullName
+            Write-Log "VDD Control launched successfully" "SUCCESS"
+        } else {
+            Write-Log "VDD Control.exe not found in $vddInstallPath" "WARNING"
+            Write-Log "Available files:" "INFO"
+            Get-ChildItem -Path $vddInstallPath -Recurse | ForEach-Object {
+                Write-Log "  $($_.FullName)" "INFO"
+            }
+        }
+    }
+    
+} catch {
+    Write-Log "Failed to install Virtual Display Driver: $($_.Exception.Message)" "ERROR"
+    
+    # Check if it's a permissions issue
+    if ($_.Exception.Message -like "*Access*denied*" -or $_.Exception.Message -like "*cannot create*") {
+        Write-Log "This script requires administrator privileges to install to Program Files" "ERROR"
+    }
+}
+
+# Download and install Looking Glass
+try {
+    Write-Log "Downloading Looking Glass host..." "INFO"
+    
+    # Download to temp location
+    $lgTempPath = Join-Path $env:TEMP "looking-glass-host.zip"
+    Invoke-WebRequest -Uri "https://looking-glass.io/artifact/stable/host" -OutFile $lgTempPath -UseBasicParsing
+    
+    # Verify download
+    if (-not (Test-Path $lgTempPath)) {
+        throw "Download failed - file not found"
+    }
+    
+    Write-Log "Download complete. Extracting to Downloads..." "INFO"
+    
+    # Extract to Downloads
+    $lgExtractPath = Join-Path $DownloadsPath "LookingGlass"
+    
+    # Remove old extraction if exists
+    if (Test-Path $lgExtractPath) {
+        Remove-Item $lgExtractPath -Recurse -Force
+    }
+    
+    Expand-Archive -Path $lgTempPath -DestinationPath $lgExtractPath -Force
+    
+    # Clean up temp zip
+    Remove-Item $lgTempPath -Force -ErrorAction SilentlyContinue
+    
+    Write-Log "Looking Glass extracted to $lgExtractPath" "SUCCESS"
+    
+    # Find and run the setup executable
+    $setupExe = Get-ChildItem -Path $lgExtractPath -Filter "looking-glass-host-setup.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    
+    if ($setupExe) {
+        Write-Log "Found installer at: $($setupExe.FullName)" "INFO"
+        Write-Log "Launching Looking Glass Host Setup..." "INFO"
+        Start-Process -FilePath $setupExe.FullName -Wait
+        Write-Log "Looking Glass Host Setup completed" "SUCCESS"
+    } else {
+        Write-Log "looking-glass-host-setup.exe not found in extraction" "WARNING"
+        Write-Log "Available files:" "INFO"
+        Get-ChildItem -Path $lgExtractPath -Recurse | ForEach-Object {
+            Write-Log "  $($_.FullName)" "INFO"
+        }
+    }
+    
+} catch {
+    Write-Log "Failed to download/install Looking Glass: $($_.Exception.Message)" "ERROR"
+}
+
+# Download and run NVCleaninstall
+try {
+    Write-Log "Downloading NVCleaninstall..." "INFO"
+    
+    # Download directly to Downloads folder
+    $nvCleanPath = Join-Path $DownloadsPath "NVCleanstall.exe"
+    
+    Write-Log "Downloading from SourceForge..." "INFO"
+    Invoke-WebRequest -Uri "https://sourceforge.net/projects/nvcleanstall/files/latest/download" -OutFile $nvCleanPath -UseBasicParsing
+    
+    # Verify download
+    if (-not (Test-Path $nvCleanPath)) {
+        throw "Download failed - file not found"
+    }
+    
+    Write-Log "NVCleaninstall downloaded to $nvCleanPath" "SUCCESS"
+    
+    # Run the executable
+    Write-Log "Launching NVCleaninstall..." "INFO"
+    Start-Process -FilePath $nvCleanPath
+    Write-Log "NVCleaninstall launched successfully" "SUCCESS"
+    
+} catch {
+    Write-Log "Failed to download/run NVCleaninstall: $($_.Exception.Message)" "ERROR"
+}
+
 # Install Display Driver Uninstaller (DDU)
 try {
     Write-Log "Installing Display Driver Uninstaller (DDU)..." "INFO"
@@ -299,43 +508,18 @@ try {
     Write-Log "Failed to download DDU: $_" "ERROR"
 }
 
-# Install HWiNFO64
-try {
-    Write-Log "Installing HWiNFO64..." "INFO"
-    choco install hwinfo -y
-    Write-Log "HWiNFO64 installed" "SUCCESS"
-} catch {
-    Write-Log "Failed to install HWiNFO64: $_" "ERROR"
-}
+######## Assorted tweaks
 
-# Install Ungoogled Chromium
+<# 
+# Install PowerToys
 try {
-    Write-Log "Installing Ungoogled Chromium..." "INFO"
-    choco install ungoogled-chromium -y
-    Write-Log "Ungoogled Chromium installed" "SUCCESS"
+    Write-Log "Installing PowerToys..." "INFO"
+    winget install Microsoft.PowerToys --accept-source-agreements --accept-package-agreements
+    Write-Log "PowerToys installed" "SUCCESS"
 } catch {
-    Write-Log "Failed to install Ungoogled Chromium: $_" "ERROR"
+    Write-Log "Failed to install PowerToys: $_" "ERROR"
 }
-
-# Enable RDP
-try {
-    Write-Log "Enabling Remote Desktop..." "INFO"
-    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-    Write-Log "Remote Desktop enabled" "SUCCESS"
-} catch {
-    Write-Log "Failed to enable RDP: $_" "ERROR"
-}
-
-# Show hidden files
-try {
-    Write-Log "Configuring Explorer to show hidden files..." "INFO"
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 1
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowSuperHidden" -Value 1
-    Write-Log "Hidden files now visible" "SUCCESS"
-} catch {
-    Write-Log "Failed to show hidden files: $_" "ERROR"
-}
+#>
 
 # Restore classic context menu (Windows 11)
 try {
@@ -358,41 +542,54 @@ try {
     Write-Log "Failed to disable web search: $_" "ERROR"
 }
 
-# Git clone powershell repository
+# Show hidden files
 try {
-    Write-Log "Cloning powershell repository..." "INFO"
-    $gitClonePath = Join-Path $AutomationPath "powershell"
-    if (Test-Path $gitClonePath) {
-        Write-Log "Repository directory already exists, pulling latest changes..." "INFO"
-        Set-Location $gitClonePath
-        git pull
-    } else {
-        git clone https://github.com/almostlight/powershell $gitClonePath
+    Write-Log "Configuring Explorer to show hidden files..." "INFO"
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 1
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowSuperHidden" -Value 1
+    Write-Log "Hidden files now visible" "SUCCESS"
+} catch {
+    Write-Log "Failed to show hidden files: $_" "ERROR"
+}
+
+# Add folders to Quick Access
+try {
+    Write-Log "Adding folders to Quick Access..." "INFO"
+    
+    $shell = New-Object -ComObject Shell.Application
+    $pinnedCount = 0
+    
+    foreach ($path in $quickAccessPaths) {
+        try {
+            if (Test-Path $path) {
+                $folder = $shell.Namespace($path)
+                $folder.Self.InvokeVerb("pintohome")
+                Write-Log "Pinned to Quick Access: $path" "SUCCESS"
+                $pinnedCount++
+            } else {
+                Write-Log "Path not found, skipping: $path" "WARNING"
+            }
+        } catch {
+            Write-Log "Failed to pin $path : $_" "ERROR"
+        }
     }
-    Write-Log "Repository cloned/updated at $gitClonePath" "SUCCESS"
+    
+    Write-Log "$pinnedCount folder(s) added to Quick Access" "SUCCESS"
 } catch {
-    Write-Log "Failed to clone repository: $_" "ERROR"
+    Write-Log "Failed to add folders to Quick Access: $_" "ERROR"
 }
 
-# Exclude automation directory from Windows Defender
+# Restart Explorer to apply changes
 try {
-    Write-Log "Excluding $AutomationPath from Windows Defender..." "INFO"
-    Add-MpPreference -ExclusionPath $AutomationPath
-    Write-Log "Windows Defender exclusion added" "SUCCESS"
+    Write-Log "Restarting Explorer to apply changes..." "INFO"
+    Stop-Process -Name explorer -Force
+    Start-Sleep -Seconds 2
+    Write-Log "Explorer restarted" "SUCCESS"
 } catch {
-    Write-Log "Failed to add Defender exclusion: $_" "ERROR"
+    Write-Log "Failed to restart Explorer: $_" "WARNING"
 }
 
-# Disable UAC prompts for automation directory (via registry)
-try {
-    Write-Log "Configuring UAC settings for automation..." "INFO"
-    # Note: Full UAC bypass for specific paths isn't directly supported
-    # This lowers UAC level but doesn't exclude specific paths
-    Write-Log "Note: UAC cannot be selectively disabled per-directory" "WARNING"
-    Write-Log "Consider running automation scripts as scheduled tasks with SYSTEM privileges" "INFO"
-} catch {
-    Write-Log "UAC configuration noted: $_" "WARNING"
-}
+Write-Log "`n=== Interactive Section ===" "INFO"
 
 # Enable headless start and autologon for current user
 try {
@@ -409,36 +606,25 @@ try {
     Write-Log "Failed to configure autologon: $_" "ERROR"
 }
 
-# Add Startup folder to Quick Access
-try {
-    Write-Log "Adding Startup folder to Quick Access..." "INFO"
-    $startupPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
-    
-    $shell = New-Object -ComObject Shell.Application
-    $folder = $shell.Namespace($startupPath)
-    $folder.Self.InvokeVerb("pintohome")
-    
-    Write-Log "Startup folder added to Quick Access" "SUCCESS"
-} catch {
-    Write-Log "Failed to add Startup to Quick Access: $_" "ERROR"
-}
-
-# Restart Explorer to apply changes
-try {
-    Write-Log "Restarting Explorer to apply changes..." "INFO"
-    Stop-Process -Name explorer -Force
-    Start-Sleep -Seconds 2
-    Write-Log "Explorer restarted" "SUCCESS"
-} catch {
-    Write-Log "Failed to restart Explorer: $_" "WARNING"
-}
-
 Write-Log "`n=== Setup Complete ===" "SUCCESS"
 Write-Log "Automation directory: $AutomationPath" "INFO"
 Write-Log "Downloads directory: $DownloadsPath" "INFO"
 Write-Log "Log file: $LogPath" "INFO"
 Write-Log "`nPlease review the log file for any warnings or errors." "INFO"
 Write-Log "Some changes may require a system restart to take effect." "WARNING"
+
+<# 
+# Offer to run Chris Titus Tech Windows Utility
+$useWinUtil = Read-Host "`nWould you like to run Chris Titus Tech's Windows Utility? (Y/N)"
+if ($useWinUtil -eq 'Y' -or $useWinUtil -eq 'y') {
+try {
+    Write-Log "Launching Chris Titus Tech Windows Utility..." "INFO"
+    iwr -useb https://christitus.com/win | iex
+    Write-Log "Windows Utility executed" "SUCCESS"
+} catch {
+    Write-Log "Failed to run Windows Utility: $_" "ERROR"
+}
+#>
 
 # Offer to open log file
 $openLog = Read-Host "`nWould you like to open the log file? (Y/N)"

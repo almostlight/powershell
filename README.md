@@ -75,9 +75,6 @@ notepad windows-setup.ps1
 -  **Autologon configuration** - Registry keys for automatic login
 -  **Quick Access shortcuts** - Add Startup folder
 
-### Additional Tools
-- **Chris Titus Tech Windows Utility** - Advanced Windows optimization tool
-
 ##  Security Considerations
 
 ### Before Running
@@ -181,8 +178,13 @@ To improve this script:
 - **Discussions**: [GitHub Discussions](https://github.com/almostlight/powershell/discussions)
 - **Log File**: Always check `C:\Users\Public\Automation\setup.log` first
 
----
-
 ##  License
 
 This script is provided as-is. Use at your own risk.
+
+---
+
+##  TODO
+Not implemented yet: 
+- Add Github login
+- Check for existing Looking Glass and VDD installations 
