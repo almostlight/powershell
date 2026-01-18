@@ -12,7 +12,7 @@ param()
 $ErrorActionPreference = "Continue"
 $AutomationPath = "C:\Users\Public\Automation"
 $LogPath = Join-Path $AutomationPath "setup.log"
-$gitClonePath = Join-Path $AutomationPath "powershell"
+$gitClonePath = Join-Path $AutomationPath "Win11-Virt"
 #$DownloadsPath = "$env:USERPROFILE\Downloads"
 $DownloadsPath = "C:\Users\Public\Automation\Downloads"
 $quickAccessPaths = @(
@@ -175,13 +175,13 @@ try {
 
 # Git clone this repository
 try {
-    Write-Log "Cloning powershell repository..." "INFO"
+    Write-Log "Cloning Win11-Virt repository..." "INFO"
     if (Test-Path $gitClonePath) {
         Write-Log "Repository directory already exists, pulling latest changes..." "INFO"
         Set-Location $gitClonePath
         git pull
     } else {
-        git clone https://github.com/almostlight/powershell $gitClonePath
+        git clone https://github.com/almostlight/Win11-Virt $gitClonePath
     }
     Write-Log "Repository cloned/updated at $gitClonePath" "SUCCESS"
 } catch {
@@ -232,7 +232,7 @@ try {
 
 try {
     Write-Log "Running NPPPowershell install script..." "INFO"
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$gitClonePath\npp_powershell_installer.ps1`"" -Wait -NoNewWindow
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$gitClonePath\Windows\npp_powershell_installer.ps1`"" -Wait -NoNewWindow
     Write-Log "NPPPowershell installed" "SUCCESS"
 } catch {
     Write-Log "Failed to download/install NPPPowershell: $_" "ERROR"
@@ -627,7 +627,7 @@ try {
 #>
 
 # Offer to open log file
-$openLog = Read-Host "`nWould you like to open the log file? (Y/N)"
+$openLog = Read-Host "`nWould you like to open the log file? (y/N)"
 if ($openLog -eq 'Y' -or $openLog -eq 'y') {
     notepad $LogPath
 }

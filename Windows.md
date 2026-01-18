@@ -1,7 +1,7 @@
-# Windows Setup Script
+# Windows KVM Setup Script
 
-A PowerShell script for automating Windows system setup, software installation, and configuration. 
-Intended for fresh Windows 11 installations in virtual machines with Nvidia GPU passthrough.
+[windows-setup.ps1](Windows/windows-setup.ps1) is a PowerShell script for automating Windows system setup, software installation, and configuration. It's intended for fresh Windows 11 installations in virtual machines with Nvidia GPU passthrough and meant to simplify the process of setting up GPU drivers, virtual display drivers, and Looking Glass for native-like graphics performance. It includes tons of other tweaks as well. 
+[npp_powershell_installer.ps1](Windows/npp_powershell_installer.ps1) is a helper script to set up PowerShell syntax support in Notepad++. It is downloaded and called by [windows-setup.ps1](Windows/windows-setup.ps1).
 
 ##  Quick Start
 
@@ -13,14 +13,14 @@ Checkpoint-Computer -Description "Before Automation Script" -RestorePointType "M
 ### One-Line Installation
 
 ```powershell
-irm https://raw.githubusercontent.com/almostlight/powershell/main/windows-setup.ps1 | iex
+irm https://raw.githubusercontent.com/almostlight/Win11-Virt/main/windows-setup.ps1 | iex
 ```
 
 ### Manual Installation
 
 1. Download the script:
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/almostlight/powershell/main/windows-setup.ps1" -OutFile "windows-setup.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/almostlight/Win11-Virt/main/windows-setup.ps1" -OutFile "windows-setup.ps1"
 ```
 
 2. Review the script:
@@ -109,10 +109,8 @@ notepad C:\Users\Public\Automation\setup.log
 
 Some items require manual configuration after the script runs:
 
-1. **Autologon** - Run `Autologon.exe` from Downloads\Autologon and enter your credentials
-2. **NVCleaninstall** - Download manually from [TechPowerUp](https://www.techpowerup.com/nvcleanstall/)
-3. **Chris Titus Utility** - Interactive tool that opens during installation
-4. **System Restart** - Some changes require a reboot to take effect
+- **Autologon** - enter your credentials
+- **System Restart** - Some changes may require a reboot to take effect
 
 ## ️ Troubleshooting
 
@@ -133,28 +131,6 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 # Reinstall Chocolatey
 Remove-Item C:\ProgramData\chocolatey -Recurse -Force
 # Re-run the script
-```
-
-### Git clone fails
-```powershell
-# Manual clone
-cd C:\Users\Public\Automation
-git clone https://github.com/almostlight/powershell
-```
-
-##  Customization
-
-To customize the script for your needs:
-
-1. **Edit software list** - Add/remove Chocolatey packages
-2. **Change automation path** - Modify `$AutomationPath` variable
-3. **Add registry tweaks** - Include additional system configurations
-4. **Skip sections** - Comment out unwanted features with `#`
-
-Example:
-```powershell
-# Skip PowerToys installation
-# winget install Microsoft.PowerToys --accept-source-agreements --accept-package-agreements
 ```
 
 ##  Additional Resources
@@ -187,5 +163,5 @@ These scripts are provided as-is. Use at your own risk.
 ##  TODO
 - Add Linux gues auto-deployment script
 - Check for existing Looking Glass and VDD installations on host side
+- Edit software list
 - Add Github login
-
