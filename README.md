@@ -180,11 +180,12 @@ To improve this script:
 
 ##  License
 
-This script is provided as-is. Use at your own risk.
+These scripts are provided as-is. Use at your own risk.
 
 ---
 
 ##  TODO
-Not implemented yet: 
+- Add Linux gues auto-deployment script
+- Check for existing Looking Glass and VDD installations on host side
 - Add Github login
-- Check for existing Looking Glass and VDD installations 
+
