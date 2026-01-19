@@ -26,13 +26,13 @@ echo "Launching Looking Glass..." | tee -a "$LOG_FILE"
 looking-glass-client \
     -m KEY_RIGHTCTRL \
     -n \
-	-s \
     wayland:fractionScale=yes \
     opengl:vsync=no \
     opengl:preventBuffer=yes \
     spice:showCursorDot=yes \
     input:autoCapture=yes \
     input:captureOnly=yes \
+	spice:clipboard \
     2>&1 | tee -a "$LOG_FILE"
 
 echo "Session over" | tee -a "$LOG_FILE"

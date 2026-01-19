@@ -1,7 +1,7 @@
 # Windows KVM Setup Script
 
-[windows-setup.ps1](Windows/windows-setup.ps1) is a PowerShell script for automating Windows system setup, software installation, and configuration. It's intended for fresh Windows 11 installations in virtual machines with Nvidia GPU passthrough and meant to simplify the process of setting up GPU drivers, virtual display drivers, and Looking Glass for native-like graphics performance. It includes tons of other tweaks as well. 
-[npp_powershell_installer.ps1](Windows/npp_powershell_installer.ps1) is a helper script to set up PowerShell syntax support in Notepad++. It is downloaded and called by [windows-setup.ps1](Windows/windows-setup.ps1).
+[windows_setup.ps1](Windows/windows-setup.ps1) is a PowerShell script for automating Windows system setup, software installation, and configuration. It's intended for fresh Windows 11 installations in virtual machines with Nvidia GPU passthrough and meant to simplify the process of setting up GPU drivers, virtual display drivers, and Looking Glass for native-like graphics performance. It includes tons of other tweaks as well. 
+[npp_powershell_installer.ps1](Windows/npp_powershell_installer.ps1) is a helper script to set up PowerShell syntax support in Notepad++. It is downloaded and called by [windows_setup.ps1](Windows/windows_setup.ps1).
 
 ##  Quick Start
 
@@ -13,24 +13,24 @@ Checkpoint-Computer -Description "Before Automation Script" -RestorePointType "M
 ### One-Line Installation
 
 ```powershell
-irm https://raw.githubusercontent.com/almostlight/Win11-Virt/main/windows-setup.ps1 | iex
+irm https://raw.githubusercontent.com/almostlight/Win11-Virt/main/windows_setup.ps1 | iex
 ```
 
 ### Manual Installation
 
 1. Download the script:
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/almostlight/Win11-Virt/main/windows-setup.ps1" -OutFile "windows-setup.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/almostlight/Win11-Virt/main/windows_setup.ps1" -OutFile "windows_setup.ps1"
 ```
 
 2. Review the script:
 ```powershell
-notepad windows-setup.ps1
+notepad windows_setup.ps1
 ```
 
 3. Run the script as Administrator:
 ```powershell
-.\windows-setup.ps1
+.\windows_setup.ps1
 ```
 
 ##  What It Does

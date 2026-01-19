@@ -2,7 +2,7 @@
 
 VM_NAME=$(sudo virsh list --all --name | grep -i "win")
 DIR="$(dirname $(realpath $0))"
-ICON_PATH="$DIR/logo"
+ICON_PATH="$DIR/logo.svg"
 TARGET="$HOME/.local/share/applications/looking-glass-$VM_NAME.desktop"
 LAUNCHER_SCRIPT="$HOME/.local/bin/launch_${VM_NAME}_lg.sh"
 
@@ -23,12 +23,12 @@ echo "
 Name=Windows 11 (Looking Glass)
 Comment=Launch Windows 11 VM with Looking Glass (auto-shutdown)
 Icon=$ICON_PATH
-Terminal=true
+Terminal=false
 Type=Application
 Categories=System;Emulator;
 StartupNotify=true
 Exec=$LAUNCHER_SCRIPT
-" | sudo tee $TARGET > /dev/null 2>&1
+" | tee $TARGET > /dev/null 2>&1
 
 cp "$DIR/launch_vm.sh" $LAUNCHER_SCRIPT
 
