@@ -5,6 +5,7 @@ To improve these scripts:
 2. Make changes
 3. Test on a (relatively) clean Windows installation
 4. Submit a pull request
+
 Thanks :)
 
 ##  Support
