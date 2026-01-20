@@ -27,13 +27,14 @@ cp -f "$DIR/launch_vm.sh" "$LAUNCHER_TARGET"
 echo "
 [Desktop Entry]
 Name=Windows 11 (Looking Glass)
-Comment=Launch Windows 11 VM with Looking Glass (auto-shutdown)
+Comment=Launch Windows 11 VM with Looking Glass
+Exec=$LAUNCHER_TARGET
 Icon=$(realpath $ICON_TARGET |rev| cut -d"." -f2- |rev)
 Terminal=false
 Type=Application
 Categories=System;Emulator;
 StartupNotify=true
-Exec=$LAUNCHER_TARGET
+StartupWMClass=looking-glass-client
 " | tee $TARGET > /dev/null 2>&1
 
 chmod +x "$TARGET"

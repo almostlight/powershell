@@ -7,6 +7,22 @@ LOG_DIR="$HOME/.local/share/looking-glass-logs"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
 LOG_FILE="$LOG_DIR/${VM_NAME}_lg.log"
+# Launch function
+launch() {
+	looking-glass-client \
+	    -m KEY_RIGHTCTRL \
+	    -n \
+	    wayland:fractionScale=yes \
+	    opengl:vsync=no \
+	    opengl:preventBuffer=yes \
+	    spice:showCursorDot=yes \
+	    input:autoCapture=yes \
+		input:captureOnFocus=yes \
+		input:grabKeyboardOnFocus=yes \
+	    input:captureOnly=yes \
+		spice:clipboard=yes \
+	    2>&1 | tee -a "$LOG_FILE" 
+}
 
 echo "Launching $VM_NAME at $(date) " | tee -a "$LOG_FILE"
 
@@ -23,17 +39,7 @@ echo "VM $VM_NAME is running." | tee -a "$LOG_FILE"
 
 # Launch Looking Glass
 echo "Launching Looking Glass..." | tee -a "$LOG_FILE"
-looking-glass-client \
-    -m KEY_RIGHTCTRL \
-    -n \
-    wayland:fractionScale=yes \
-    opengl:vsync=no \
-    opengl:preventBuffer=yes \
-    spice:showCursorDot=yes \
-    input:autoCapture=yes \
-    input:captureOnly=yes \
-	spice:clipboard \
-    2>&1 | tee -a "$LOG_FILE"
+launch
 
 echo "Session over" | tee -a "$LOG_FILE"
 
